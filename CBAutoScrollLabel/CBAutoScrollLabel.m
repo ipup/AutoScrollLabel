@@ -309,6 +309,8 @@ static void each_object(NSArray *objects, void (^block)(id object))
 
 - (void)refreshLabels
 {
+    if (!self.text) return;
+    
 	__block float offset = 0.0;
 	
     // calculate the label size
