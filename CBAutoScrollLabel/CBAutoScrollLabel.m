@@ -13,6 +13,7 @@
 #import "CBAutoScrollLabel.h"
 #import <QuartzCore/QuartzCore.h>
 #import "SimpleAttributedLabel.h"
+#import "MOScrollView.h"
 
 #define kLabelCount 2
 // pixel buffer space between scrolling label
@@ -36,7 +37,7 @@ static void each_object(NSArray *objects, void (^block)(id object))
 }
 @property (nonatomic, strong) NSArray *labels;
 @property (strong, nonatomic, readonly) SimpleAttributedLabel *mainLabel;
-@property (nonatomic, strong) UIScrollView *scrollView;
+@property (nonatomic, strong) MOScrollView *scrollView;
 
 @end
 
@@ -125,6 +126,7 @@ static void each_object(NSArray *objects, void (^block)(id object))
 - (void)setFrame:(CGRect)frame
 {
     [super setFrame:frame];
+    [self refreshLabels];
     [self applyGradientMaskForFadeLength:self.fadeLength enableLeft:_isScrolling];
 }
 
@@ -134,7 +136,7 @@ static void each_object(NSArray *objects, void (^block)(id object))
 {
     if (_scrollView == nil)
     {
-        _scrollView = [[UIScrollView alloc] initWithFrame:self.bounds];
+        _scrollView = [[MOScrollView alloc] initWithFrame:self.bounds];
         _scrollView.autoresizingMask = (UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight);
         _scrollView.backgroundColor = [UIColor clearColor];
         
@@ -280,7 +282,7 @@ static void each_object(NSArray *objects, void (^block)(id object))
     [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(enableShadow) object:nil];
     
     BOOL doScrollLeft = (self.scrollDirection == CBAutoScrollDirectionLeft);
-    self.scrollView.contentOffset = (doScrollLeft ? CGPointZero : CGPointMake(labelWidth + _labelSpacing, 0));
+    self.scrollView.contentOffset = (doScrollLeft ? CGPointMake(0.0f, 0.0f) : CGPointMake(labelWidth + _labelSpacing, 0));
     
     // Add the right shadow
     [self applyGradientMaskForFadeLength:self.fadeLength enableLeft:NO];
@@ -290,32 +292,42 @@ static void each_object(NSArray *objects, void (^block)(id object))
     
     // animate the scrolling
     NSTimeInterval duration = labelWidth / self.scrollSpeed;
-    [UIView animateWithDuration:duration delay:self.pauseInterval options:self.animationOptions | UIViewAnimationOptionAllowUserInteraction animations:^{
-        // adjust offset
-        self.scrollView.contentOffset = (doScrollLeft ? CGPointMake(labelWidth + _labelSpacing, 0) : CGPointZero);
-    } completion:^(BOOL finished) {
+//    SEL selector = @selector(_setContentOffsetAnimationDuration:);
+//    NSInvocation *invocation = [NSInvocation invocationWithMethodSignature:[self.scrollView methodSignatureForSelector:selector]];
+//    
+//    [invocation setSelector:selector];
+//    [invocation setTarget:self.scrollView];
+//    [invocation setArgument:&duration atIndex:2];
+//    [invocation invoke];
+
+    
+//    [self.scrollView setContentOffset:(doScrollLeft ? CGPointMake(labelWidth + _labelSpacing, 0) : CGPointZero) animated:YES];
+//    
+
+    
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(self.pauseInterval * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [self.scrollView setContentOffset:(doScrollLeft ? CGPointMake(labelWidth + _labelSpacing, 0) : CGPointZero) withTimingFunction:[CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseIn] duration:duration];
+    });
+   
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)((self.pauseInterval + duration) * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         _isScrolling = NO;
         
         // remove the left shadow
         [self applyGradientMaskForFadeLength:self.fadeLength enableLeft:NO];
         
         // setup pause delay/loop
-        if (finished)
-        {
-            [self performSelector:@selector(scrollLabelIfNeeded) withObject:nil];
-        }
-    }];
+        [self performSelector:@selector(scrollLabelIfNeeded) withObject:nil];
+    });
 }
 
 - (void)refreshLabels
 {
     if (!self.text) return;
     
-	__block float offset = 0.0;
-	
     // calculate the label size
-    CGSize labelSize = [self.mainLabel.text sizeWithFont:self.mainLabel.font
-                                       constrainedToSize:CGSizeMake(CGFLOAT_MAX, CGRectGetHeight(self.bounds))];
+    CGSize labelSize = [self.mainLabel.text sizeWithAttributes:@{NSFontAttributeName: self.mainLabel.font}];
+    
+    __block float offset = 0.0f;
 
     each_object(self.labels, ^(SimpleAttributedLabel *label) {
         CGRect frame = label.frame;
@@ -337,7 +349,7 @@ static void each_object(NSArray *objects, void (^block)(id object))
 	if (CGRectGetWidth(self.mainLabel.bounds) > CGRectGetWidth(self.bounds) )
     {
         CGSize size;
-        size.width = CGRectGetWidth(self.mainLabel.bounds) + CGRectGetWidth(self.bounds) + _labelSpacing;
+        size.width = CGRectGetWidth(self.mainLabel.bounds) * 2.0f + _labelSpacing;
         size.height = CGRectGetHeight(self.bounds);
         self.scrollView.contentSize = size;
 
