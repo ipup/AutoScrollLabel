@@ -12,7 +12,6 @@
 
 #import "CBAutoScrollLabel.h"
 #import <QuartzCore/QuartzCore.h>
-#import "SimpleAttributedLabel.h"
 #import "MOScrollView.h"
 
 #define kLabelCount 2
@@ -29,14 +28,14 @@ static void each_object(NSArray *objects, void (^block)(id object))
 }
 
 // shortcut to change each label attribute value
-#define EACH_LABEL(ATTR, VALUE) each_object(self.labels, ^(SimpleAttributedLabel *label) { label.ATTR = VALUE; });
+#define EACH_LABEL(ATTR, VALUE) each_object(self.labels, ^(UILabel *label) { label.ATTR = VALUE; });
 
 @interface CBAutoScrollLabel ()
 {
 	BOOL _isScrolling;
 }
 @property (nonatomic, strong) NSArray *labels;
-@property (strong, nonatomic, readonly) SimpleAttributedLabel *mainLabel;
+@property (strong, nonatomic, readonly) UILabel *mainLabel;
 @property (nonatomic, strong) MOScrollView *scrollView;
 
 @end
@@ -80,7 +79,7 @@ static void each_object(NSArray *objects, void (^block)(id object))
     NSMutableSet *labelSet = [[NSMutableSet alloc] initWithCapacity:kLabelCount];
 	for (int index = 0 ; index < kLabelCount ; ++index)
     {
-		SimpleAttributedLabel *label = [[SimpleAttributedLabel alloc] init];
+		UILabel *label = [[UILabel alloc] init];
 		//label.textColor = [UIColor whiteColor];
 		label.backgroundColor = [UIColor clearColor];
         
@@ -104,7 +103,7 @@ static void each_object(NSArray *objects, void (^block)(id object))
 	_scrollSpeed = kDefaultPixelsPerSecond;
 	_pauseInterval = kDefaultPauseTime;
 	_labelSpacing = kDefaultLabelBufferSpace;
-    self.textAlignment = UITextAlignmentLeft;
+    self.textAlignment = NSTextAlignmentLeft;
     self.animationOptions = UIViewAnimationOptionCurveEaseIn;
 	self.scrollView.showsVerticalScrollIndicator = NO;
 	self.scrollView.showsHorizontalScrollIndicator = NO;
@@ -160,7 +159,7 @@ static void each_object(NSArray *objects, void (^block)(id object))
     }
 }
 
-- (SimpleAttributedLabel *)mainLabel
+- (UILabel *)mainLabel
 {
     return [self.labels objectAtIndex:0];
 }
@@ -329,7 +328,7 @@ static void each_object(NSArray *objects, void (^block)(id object))
     
     __block float offset = 0.0f;
 
-    each_object(self.labels, ^(SimpleAttributedLabel *label) {
+    each_object(self.labels, ^(UILabel *label) {
         CGRect frame = label.frame;
         frame.origin.x = offset;
         frame.size.height = CGRectGetHeight(self.bounds);
