@@ -33,6 +33,8 @@ static void each_object(NSArray *objects, void (^block)(id object))
 @interface CBAutoScrollLabel ()
 {
 	BOOL _isScrolling;
+    dispatch_source_t _timer1;
+    dispatch_source_t _timer2;
 }
 @property (nonatomic, strong) NSArray *labels;
 @property (strong, nonatomic, readonly) UILabel *mainLabel;
@@ -303,20 +305,43 @@ static void each_object(NSArray *objects, void (^block)(id object))
 //    [self.scrollView setContentOffset:(doScrollLeft ? CGPointMake(labelWidth + _labelSpacing, 0) : CGPointZero) animated:YES];
 //    
 
+    if (_timer1) {
+        dispatch_source_cancel(_timer1);
+        _timer1 = nil;
+    }
     
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(self.pauseInterval * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+    dispatch_time_t startTime = dispatch_time(DISPATCH_TIME_NOW, self.pauseInterval * NSEC_PER_SEC);
+    dispatch_time_t pauseTime = startTime;
+    
+    _timer1 = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
+    
+    dispatch_source_set_timer(_timer1, startTime, pauseTime, 0.0f * NSEC_PER_SEC);
+    dispatch_source_set_event_handler(_timer1, ^{
         [self.scrollView setContentOffset:(doScrollLeft ? CGPointMake(labelWidth + _labelSpacing, 0) : CGPointZero) withTimingFunction:[CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseIn] duration:duration];
     });
-   
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)((self.pauseInterval + duration) * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+    dispatch_resume(_timer1);
+    
+    if (_timer2) {
+        dispatch_source_cancel(_timer2);
+        _timer2 = nil;
+    }
+    
+    _timer2 = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
+    
+    startTime = dispatch_time(DISPATCH_TIME_NOW, (self.pauseInterval + duration) * NSEC_PER_SEC);
+    pauseTime = startTime;
+    
+    dispatch_source_set_timer(_timer2, startTime, pauseTime, 0.0f * NSEC_PER_SEC);
+    dispatch_source_set_event_handler(_timer2, ^{
         _isScrolling = NO;
         
         // remove the left shadow
         [self applyGradientMaskForFadeLength:self.fadeLength enableLeft:NO];
         
         // setup pause delay/loop
-        [self performSelector:@selector(scrollLabelIfNeeded) withObject:nil];
+        [self performSelector:@selector(scrollLabelIfNeeded) withObject:nil afterDelay:0.1f];
     });
+    dispatch_resume(_timer2);
 }
 
 - (void)refreshLabels
@@ -342,8 +367,21 @@ static void each_object(NSArray *objects, void (^block)(id object))
         offset += CGRectGetWidth(label.bounds) + _labelSpacing;
     });
     
-	self.scrollView.contentOffset = CGPointZero;
+    [(MOScrollView *)self.scrollView performSelector:@selector(stopAnimation) withObject:nil];
+    self.scrollView.contentOffset = CGPointZero;
+    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(scrollLabelIfNeeded) object:nil];
+    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(enableShadow) object:nil];
+    
+    if (_timer1) {
+        dispatch_source_cancel(_timer1);
+        _timer1 = nil;
+    }
 
+    if (_timer2) {
+        dispatch_source_cancel(_timer2);
+        _timer2 = nil;
+    }
+    
 	// if the label is bigger than the space allocated, then it should scroll
 	if (CGRectGetWidth(self.mainLabel.bounds) > CGRectGetWidth(self.bounds) )
     {
@@ -355,7 +393,7 @@ static void each_object(NSArray *objects, void (^block)(id object))
         EACH_LABEL(hidden, NO)
         
         [self applyGradientMaskForFadeLength:self.fadeLength enableLeft:_isScrolling];
-
+        
 		[self scrollLabelIfNeeded];
 	}
     else
