@@ -101,7 +101,7 @@ static void each_object(NSArray *objects, void (^block)(id object))
     #endif
     
     // default values
-	_scrollDirection = CBAutoScrollDirectionLeft;
+    _scrollDirection = !APP_IS_RTL ? CBAutoScrollDirectionLeft : CBAutoScrollDirectionRight;
 	_scrollSpeed = kDefaultPixelsPerSecond;
 	_pauseInterval = kDefaultPauseTime;
 	_labelSpacing = kDefaultLabelBufferSpace;
@@ -241,6 +241,14 @@ static void each_object(NSArray *objects, void (^block)(id object))
 
 - (void)setScrollDirection:(CBAutoScrollDirection)direction
 {
+    if (APP_IS_RTL) {
+        if (direction == CBAutoScrollDirectionRight) {
+            direction = CBAutoScrollDirectionLeft;
+        } else {
+            direction = CBAutoScrollDirectionRight;
+        }
+    }
+    
 	_scrollDirection = direction;
     
     [self scrollLabelIfNeeded];
@@ -282,8 +290,8 @@ static void each_object(NSArray *objects, void (^block)(id object))
     [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(scrollLabelIfNeeded) object:nil];
     [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(enableShadow) object:nil];
     
-    BOOL doScrollLeft = (self.scrollDirection == CBAutoScrollDirectionLeft);
-    self.scrollView.contentOffset = (doScrollLeft ? CGPointMake(0.0f, 0.0f) : CGPointMake(labelWidth + _labelSpacing, 0));
+    BOOL doScrollLeft = self.scrollDirection == CBAutoScrollDirectionLeft;
+    self.scrollView.contentOffset = (doScrollLeft ? CGPointMake(0.0f, 0.0f) : CGPointMake(self.scrollView.contentSize.width - CGRectGetWidth(self.scrollView.frame), 0));
     
     // Add the right shadow
     [self applyGradientMaskForFadeLength:self.fadeLength enableLeft:NO];
@@ -317,7 +325,7 @@ static void each_object(NSArray *objects, void (^block)(id object))
     
     dispatch_source_set_timer(_timer1, startTime, pauseTime, 0.0f * NSEC_PER_SEC);
     dispatch_source_set_event_handler(_timer1, ^{
-        [self.scrollView setContentOffset:(doScrollLeft ? CGPointMake(labelWidth + _labelSpacing, 0) : CGPointZero) withTimingFunction:[CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseIn] duration:duration];
+        [self.scrollView setContentOffset:(doScrollLeft ? CGPointMake(labelWidth + _labelSpacing, 0) : CGPointMake(labelWidth - CGRectGetWidth(self.scrollView.frame), 0)) withTimingFunction:[CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseIn] duration:duration];
     });
     dispatch_resume(_timer1);
     
@@ -355,9 +363,9 @@ static void each_object(NSArray *objects, void (^block)(id object))
 
     each_object(self.labels, ^(UILabel *label) {
         CGRect frame = label.frame;
-        frame.origin.x = offset;
-        frame.size.height = CGRectGetHeight(self.bounds);
         frame.size.width = labelSize.width + 2 /*Magic number*/;
+        frame.origin.x = APP_IS_RTL ? (CGRectGetWidth(frame) + _labelSpacing) * (self.labels.count - 1) - offset : offset;
+        frame.size.height = CGRectGetHeight(self.bounds);
         label.frame = frame;
 
         
@@ -405,7 +413,7 @@ static void each_object(NSArray *objects, void (^block)(id object))
         self.scrollView.contentSize = self.bounds.size;
         self.mainLabel.frame = self.bounds;
         self.mainLabel.hidden = NO;
-        //self.mainLabel.textAlignment = self.textAlignment;
+        self.mainLabel.textAlignment = self.textAlignment;
         
         [self applyGradientMaskForFadeLength:0 enableLeft:NO];
 	}
